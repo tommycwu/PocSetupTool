@@ -54,6 +54,43 @@ namespace PocOrgSetup
             return "";
         }
 
+        public string GetPwdPolicyId(string baseUrl, string apiKey)
+        {
+            var userUrl = baseUrl + "/api/v1/policies?type=PASSWORD";
+            List<string> responseList = new List<string>(new string[] { "" });
+            try
+            {
+                var endpoint = new Uri(userUrl);
+                var webRequest = WebRequest.Create(endpoint) as HttpWebRequest;
+                if (webRequest != null)
+                {
+                    webRequest.Method = "GET";
+                    webRequest.Headers.Add("Authorization", "SSWS " + apiKey);
+                    webRequest.Accept = "application/json";
+                    webRequest.ContentType = "application/json";
+                    var response = webRequest.GetResponse();
+                    using (var reader = new StreamReader(response.GetResponseStream()))
+                    {
+                        string jsonString = reader.ReadToEnd();
+                        dynamic jsonObject = JsonConvert.DeserializeObject(jsonString, typeof(object));
+                        for (int i = 0; i <= jsonObject.Count - 1; i++)
+                        {
+                            var s = jsonObject[i].ToString();
+                            if (s.Contains("Password Policy"))
+                            {
+                                return jsonObject[i].id;
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                return ex.Message;
+            }
+            return "";
+        }
+
         public string GetEverybodyGroup(string baseUrl, string apiKey)
         {
             var userUrl = baseUrl + "/api/v1/groups";
@@ -155,8 +192,8 @@ namespace PocOrgSetup
                         string s1;
                         for (int i = 0; i <= jsonObject.Count - 1; i++)
                         {
-                            s1 = jsonObject[i].settings.password.complexity.minLength.ToString();
-                            responseList.Add("Pwd Min Len. = " + s1);
+                            s1 = jsonObject[i].settings.password.complexity.dictionary.common.exclude.ToString();
+                            responseList.Add(s1);
                         }
                     }
                 }
@@ -289,7 +326,6 @@ namespace PocOrgSetup
                     Token = apiKey
                 });
                 var returnList = client.Features.ListFeatures().ToEnumerable();
-
                 foreach (var featureObj in returnList)
                 {
                     responseList.Add(featureObj.Name);
@@ -303,7 +339,58 @@ namespace PocOrgSetup
             return responseList;
         }
 
-        public string PostEnrollRule(string baseUrl, string apiKey, string policyId, string policyData)
+        public string CreatePasswordPolicy(string baseUrl, string apiKey, string policyData)
+        {
+            var policyUrl = baseUrl + "/api/v1/policies";
+            try
+            {
+                using (var client = new HttpClient())
+                {
+                    var request = new HttpRequestMessage
+                    {
+                        Method = HttpMethod.Post,
+                        RequestUri = new Uri(policyUrl)
+                    };
+                    request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+                    request.Headers.Authorization = new AuthenticationHeaderValue("SSWS", apiKey);
+                    request.Content = new StringContent(policyData, Encoding.UTF8, "application/json");
+                    var response = client.SendAsync(request);
+                    return response.Result.Content.ReadAsStringAsync().Result;
+                }
+            }
+            catch (Exception ex)
+            {
+                return ex.Message;
+            }
+        }
+
+        public string CreatePasswordRule(string baseUrl, string apiKey, string policyId, string ruleData)
+        {
+            var policyUrl = baseUrl + "/api/v1/policies/" + policyId + "/rules";
+            try
+            {
+                using (var client = new HttpClient())
+                {
+                    var request = new HttpRequestMessage
+                    {
+                        Method = HttpMethod.Post,
+                        RequestUri = new Uri(policyUrl)
+                    };
+                    request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+                    request.Headers.Authorization = new AuthenticationHeaderValue("SSWS", apiKey);
+                    request.Content = new StringContent(ruleData, Encoding.UTF8, "application/json");
+                    var response = client.SendAsync(request);
+                    return response.Result.Content.ReadAsStringAsync().Result;
+                }
+            }
+            catch (Exception ex)
+            {
+                return ex.Message;
+            }
+        }
+
+
+        public string EnablePushNotification(string baseUrl, string apiKey, string policyId, string policyData)
         {
             var policyUrl = baseUrl + "/api/v1/policies/" + policyId + "/rules";
             try
@@ -328,7 +415,7 @@ namespace PocOrgSetup
             }
         }
 
-        public string PostThreatConfig(string baseUrl, string apiKey, string configData)
+        public string EnableThreatInsight(string baseUrl, string apiKey, string configData)
         {
             var threatUrl = baseUrl + "/api/v1/threats/configuration";
             try
@@ -388,11 +475,12 @@ namespace PocOrgSetup
 
             //oktaDomain = "https://nextpoc.okta.com";
             //apiKey = "00_66otAllJp2xgJB4zryTt76xeQcHN3syuCRztDhE";
-            //oktaDomain = "https://dev-8964037.okta.com";
-            //apiKey = "004PwPLvNfDegg9U0UG9P2GIoBdr5LDTKHbP8BVGpk";
+            oktaDomain = "https://dev-8964037.okta.com";
+            apiKey = "004PwPLvNfDegg9U0UG9P2GIoBdr5LDTKHbP8BVGpk";
 
-            TextBoxPolicyId.Text = GetMfaPolicyId(oktaDomain, apiKey);
+            TextBoxPolicyId1.Text = GetMfaPolicyId(oktaDomain, apiKey);
             TextBoxGroupId.Text = GetEverybodyGroup(oktaDomain, apiKey);
+            TextBoxPolicyId2.Text = GetPwdPolicyId(oktaDomain, apiKey);
             var featuresList = GetSignonPolicies(oktaDomain, apiKey);
             //foreach (var featureObj in featuresList)
             //{
@@ -414,12 +502,17 @@ namespace PocOrgSetup
         {
             var oktaDomain = TextBox1.Text;
             var apiKey = TextBox2.Text;
-            var policyData = TextBoxPostPushData.Text;
-            var policyId = TextBoxPolicyId.Text;
+            var policyData = TextBoxReq2.Text;
+            var policyId = TextBoxPolicyId1.Text;
+
+            //oktaDomain = "https://nextpoc.okta.com";
+            //apiKey = "00_66otAllJp2xgJB4zryTt76xeQcHN3syuCRztDhE";
+            oktaDomain = "https://dev-8964037.okta.com";
+            apiKey = "004PwPLvNfDegg9U0UG9P2GIoBdr5LDTKHbP8BVGpk";
 
             //var postResult = ActivateOktaOtp(oktaDomain, apiKey).ToString();
             //TextBoxPostReturn.Text = postResult;
-            TextBoxPostPushReturn.Text = PostEnrollRule(oktaDomain, apiKey, policyId, policyData);
+            TextBoxRes2.Text = EnablePushNotification(oktaDomain, apiKey, policyId, policyData);
 
         }
 
@@ -427,9 +520,37 @@ namespace PocOrgSetup
         {
             var oktaDomain = TextBox1.Text;
             var apiKey = TextBox2.Text;
-            var threatData = TextBoxPostThreatData.Text;
+            var threatData = TextBoxReq3.Text;
 
-            TextBoxPostThreatReturn.Text = PostThreatConfig(oktaDomain, apiKey, threatData);
+            TextBoxRes3.Text = EnableThreatInsight(oktaDomain, apiKey, threatData);
+        }
+
+        protected void Button4_Click(object sender, EventArgs e)
+        {
+            var oktaDomain = TextBox1.Text;
+            var apiKey = TextBox2.Text;
+            var pwdPolicyId = TextBoxPolicyId2.Text;
+            var ruleData = TextBoxReq5.Text;
+
+            //oktaDomain = "https://nextpoc.okta.com";
+            //apiKey = "00_66otAllJp2xgJB4zryTt76xeQcHN3syuCRztDhE";
+            oktaDomain = "https://dev-8964037.okta.com";
+            apiKey = "004PwPLvNfDegg9U0UG9P2GIoBdr5LDTKHbP8BVGpk";
+
+            TextBoxPolicyId1.Text = GetMfaPolicyId(oktaDomain, apiKey);
+            TextBoxGroupId.Text = GetEverybodyGroup(oktaDomain, apiKey);
+            var featuresList = GetSignonPolicies(oktaDomain, apiKey);
+
+            var resultsList = GetPasswordPolicies(oktaDomain, apiKey);
+            foreach (var resultObj in resultsList)
+            {
+                TextBoxRes4.Text += resultObj.ToString() + Environment.NewLine;
+            }
+
+            string rawString = TextBoxReq4.Text;
+            string replacedString = rawString.Replace("{{groupId}}", TextBoxGroupId.Text);
+            TextBoxRes4.Text = CreatePasswordPolicy(oktaDomain, apiKey, replacedString);
+            TextBoxRes5.Text = CreatePasswordRule(oktaDomain, apiKey, pwdPolicyId, ruleData);
         }
     }
 }
